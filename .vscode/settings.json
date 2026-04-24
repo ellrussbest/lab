@@ -1,0 +1,24 @@
+{
+  "[jsonc]": {
+    "editor.defaultFormatter": "biomejs.biome"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "biomejs.biome"
+  },
+  "editor.codeActionsOnSave": {
+    "source.fixAll.biome": "explicit",
+    "source.organizeImports.biome": "explicit"
+  },
+  "editor.defaultFormatter": "biomejs.biome",
+  "editor.formatOnSave": true,
+  "explorer.compactFolders": false,
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.patterns": {
+    "Docker*": "Dockerfile.*, dockerfile.*, Docker-compose.yml, docker-compose.yml, Docker-compose.*.yml, docker-compose.*.yml, Docker-compose.*.yaml, docker-compose.*.yaml, compose.yml, compose.yaml, compose.*.yml, compose.*.yaml, .dockerignore",
+    "package.json": "package-lock.json, bun*, pnpm*, .yarnrc*, yarn*, .eslint*, eslint*, .oxlint*, oxlint*, .prettier*, prettier*, .editorconfig, biome.json",
+    "tsconfig.json": "tsconfig.*.json, env.d.ts"
+  },
+  "files.autoSave": "afterDelay",
+  "js/ts.preferences.importModuleSpecifier": "non-relative",
+  "js/ts.updateImportsOnFileMove.enabled": "always"
+}

@@ -1,0 +1,175 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on",
+        "recommended": true,
+        "useSortedAttributes": "on",
+        "useSortedKeys": "on",
+        "useSortedProperties": "on"
+      }
+    },
+    "enabled": true
+  },
+  "css": {
+    "formatter": { "enabled": true },
+    "linter": { "enabled": true },
+    "parser": { "tailwindDirectives": true }
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**",
+      "!app/openbao/postgres_data",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/build",
+      "!**/worker-configuration.d.ts",
+      "!package/**/package.json",
+      "!shared/**/package.json"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 80
+  },
+  "javascript": {
+    "formatter": {
+      "indentStyle": "space",
+      "indentWidth": 2,
+      "lineWidth": 80,
+      "quoteStyle": "single",
+      "semicolons": "always",
+      "trailingCommas": "all"
+    }
+  },
+  "linter": {
+    "domains": {
+      "project": "all"
+    },
+    "enabled": true,
+    "includes": [
+      "**",
+      "!node_modules",
+      "!.next",
+      "!dist",
+      "!build",
+      "!worker-configuration.d.ts"
+    ],
+    "rules": {
+      "correctness": {
+        "useImportExtensions": "off"
+      },
+      "recommended": true,
+      "style": {
+        "useFilenamingConvention": {
+          "level": "error",
+          "options": {
+            "filenameCases": ["kebab-case"],
+            "strictCase": true
+          }
+        },
+        "useNamingConvention": {
+          "level": "error",
+          "options": {
+            "conventions": [
+              {
+                "formats": ["CONSTANT_CASE", "PascalCase", "camelCase"],
+                "selector": { "kind": "const", "scope": "global" }
+              },
+              {
+                "formats": ["camelCase"],
+                "selector": { "kind": "var", "scope": "global" }
+              },
+              {
+                "formats": ["camelCase", "PascalCase"],
+                "selector": { "kind": "function" }
+              },
+              {
+                "formats": ["camelCase"],
+                "selector": { "kind": "functionParameter" }
+              },
+              {
+                "formats": ["PascalCase"],
+                "selector": { "kind": "class" }
+              },
+              {
+                "formats": ["PascalCase"],
+                "selector": { "kind": "typeAlias" }
+              },
+              {
+                "formats": ["PascalCase"],
+                "selector": { "kind": "interface" }
+              },
+              {
+                "formats": ["PascalCase"],
+                "selector": { "kind": "enum" }
+              },
+              {
+                "formats": ["PascalCase"],
+                "selector": { "kind": "enumMember" }
+              },
+              {
+                "formats": ["CONSTANT_CASE"],
+                "selector": {
+                  "kind": "classProperty",
+                  "modifiers": ["static", "readonly"]
+                }
+              },
+              {
+                "formats": ["camelCase"],
+                "selector": { "kind": "classMethod" }
+              },
+              {
+                "formats": ["camelCase"],
+                "selector": { "kind": "classGetter" }
+              },
+              {
+                "formats": ["camelCase"],
+                "selector": { "kind": "classSetter" }
+              },
+              {
+                "formats": ["camelCase"],
+                "selector": { "kind": "classMember" }
+              }
+            ],
+            "strictCase": false
+          }
+        }
+      },
+      "suspicious": {
+        "noConsole": {
+          "level": "error",
+          "options": {
+            "allow": ["warn", "error", "info"]
+          }
+        },
+        "noUnknownAtRules": "off"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["worker-configuration.d.ts"],
+      "linter": {
+        "enabled": false
+      }
+    },
+    {
+      "formatter": {
+        "enabled": false,
+        "lineEnding": "lf"
+      },
+      "includes": ["**/*.svg"]
+    }
+  ],
+  "vcs": {
+    "clientKind": "git",
+    "defaultBranch": "master",
+    "enabled": true,
+    "useIgnoreFile": true
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "author": "",
+  "description": "",
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
+  },
+  "keywords": [],
+  "license": "ISC",
+  "main": "index.ts",
+  "name": "rollup",
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev": "tsx index.ts",
+    "format": "biome check --write"
+  },
+  "version": "1.0.0"
+}

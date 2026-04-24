@@ -1,0 +1,9 @@
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "paths": {}
+  },
+  "extends": "./tsconfig.base.json",
+  "files": [],
+  "references": []
+}
