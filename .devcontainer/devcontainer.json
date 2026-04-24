@@ -1,0 +1,29 @@
+{
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "biomejs.biome"
+      ],
+      "settings": {
+        "files.eol": "\n"
+      }
+    }
+  },
+  "dockerFile": "Dockerfile",
+  "features": {
+    "ghcr.io/devcontainers-extra/features/pnpm": {
+      "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/docker-outside-of-docker": {},
+    "ghcr.io/devcontainers/features/github-cli": {},
+    "ghcr.io/devcontainers/features/node": {}
+  },
+  "mounts": [
+    "source=build-cache,target=${containerWorkspaceFolder}/out,type=volume"
+  ],
+  "name": "compl",
+  "postCreateCommand": "sudo chown -R $(whoami):$(whoami) ${containerWorkspaceFolder} && bash /usr/local/bin/setup-git.sh",
+  "remoteUser": "dev",
+  "workspaceFolder": "/workspaces/lab-ws",
+  "workspaceMount": "source=${localWorkspaceFolder},target=${containerWorkspaceFolder},type=bind,consistency=cached"
+}
