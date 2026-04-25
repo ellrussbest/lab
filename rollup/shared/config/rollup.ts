@@ -81,11 +81,13 @@ function getMetadata(currentDir: string): {
         const baseUrl = tsconfig.compilerOptions?.baseUrl ?? '.';
         const absoluteBase = resolve(dir, baseUrl);
 
-        for (const [key, values] of Object.entries(paths)) {
+        for (const [key, [firstValue]] of Object.entries(paths)) {
+          if (!firstValue) continue;
+
           const cleanKey = key.replace('/*', '');
-          // Only add if not already defined (Bottom-up priority)
+
           if (!aliasMap[cleanKey]) {
-            const cleanValue = values[0].replace('/*', '');
+            const cleanValue = firstValue.replace('/*', '');
             aliasMap[cleanKey] = resolve(absoluteBase, cleanValue);
           }
         }
