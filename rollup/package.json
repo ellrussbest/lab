@@ -12,6 +12,7 @@
   "name": "rollup",
   "packageManager": "pnpm@10.33.0",
   "scripts": {
+    "build": "pnpm -r build",
     "dev": "tsx index.ts",
     "format": "biome check --write"
   },

@@ -1,0 +1,10 @@
+packages:
+  - 'shared/**'
+
+shellEmulator: true
+
+trustPolicy: no-downgrade
+# trustPolicyExclude:
+#   - 'jose@4.15.9'
+# onlyBuiltDependencies:
+#   - better-sqlite3
