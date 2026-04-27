@@ -1,12 +1,31 @@
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { dirname, extname, join, relative, resolve, sep } from 'node:path';
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+} from 'node:fs';
+import {
+  dirname,
+  extname,
+  join,
+  relative,
+  resolve,
+  sep,
+} from 'node:path';
+
 import alias from '@rollup/plugin-alias';
 import typescript from '@rollup/plugin-typescript';
 import { defineConfig, type RollupOptions } from 'rollup';
 import dts from 'rollup-plugin-dts';
+import { parse } from 'jsonc-parser';
+
+// --------------------
+// Types
+// --------------------
 
 interface PackageManifest {
   dependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
 }
 
 interface TSConfig {
@@ -17,7 +36,7 @@ interface TSConfig {
 }
 
 interface Alias {
-  find: string | RegExp;
+  find: RegExp;
   replacement: string;
 }
 
@@ -25,7 +44,12 @@ interface EntryMetadata {
   path: string;
   externals: string[];
   aliases: Alias[];
+  tsconfigPath: string;
 }
+
+// --------------------
+// Constants
+// --------------------
 
 const SUPPORTED_EXTENSIONS = [
   '.ts',
@@ -38,61 +62,100 @@ const SUPPORTED_EXTENSIONS = [
   '.cjs',
 ];
 
-/**
- * Strips comments from JSONC (tsconfig) files.
- */
-function parseJSONC<T>(text: string): T {
-  return JSON.parse(text.replace(/\/\/.*|\/\*[\s\S]*?\*\//g, '')) as T;
+// --------------------
+// Helpers
+// --------------------
+
+function safeReadJSON<T>(file: string): T | null {
+  try {
+    return JSON.parse(readFileSync(file, 'utf-8')) as T;
+  } catch {
+    return null;
+  }
+}
+
+function safeReadTSConfig(file: string): TSConfig | null {
+  try {
+    return parse(readFileSync(file, 'utf-8')) as TSConfig;
+  } catch {
+    return null;
+  }
 }
 
 /**
- * Walks up the tree to merge dependencies and path aliases.
+ * Convert TS path alias → Rollup alias (regex-based, correct semantics)
  */
-function getMetadata(currentDir: string): {
+function createAlias(find: string, target: string): Alias {
+  const hasWildcard = find.endsWith('/*');
+
+  if (hasWildcard) {
+    const prefix = find.slice(0, -2);
+    return {
+      find: new RegExp(`^${prefix}/(.+)$`),
+      replacement: `${target}/$1`,
+    };
+  }
+
+  return {
+    find: new RegExp(`^${find}$`),
+    replacement: target,
+  };
+}
+
+/**
+ * Walk upward and merge metadata consistently
+ */
+function getMetadata(startDir: string): {
   externals: string[];
   aliases: Alias[];
+  tsconfigPath: string;
 } {
-  const externals: string[] = [];
-  const aliasMap: Record<string, string> = {};
+  const externals = new Set<string>();
+  const aliasMap = new Map<string, Alias>();
+  let tsconfigPath: string | null = null;
 
-  let dir = currentDir;
+  let dir = startDir;
   const root = process.cwd();
 
-  while (dir !== dirname(dir)) {
-    // 1. Collect Externals (Nearest Wins)
+  while (true) {
+    // ---- package.json (MERGED: deps + peerDeps) ----
     const pkgPath = join(dir, 'package.json');
-    if (externals.length === 0 && existsSync(pkgPath)) {
-      try {
-        const pkg = JSON.parse(
-          readFileSync(pkgPath, 'utf-8'),
-        ) as PackageManifest;
-        externals.push(...Object.keys(pkg.dependencies ?? {}));
-      } catch {
-        /* skip */
+    if (existsSync(pkgPath)) {
+      const pkg = safeReadJSON<PackageManifest>(pkgPath);
+
+      const allDeps = {
+        ...pkg?.dependencies,
+        ...pkg?.peerDependencies,
+      };
+
+      for (const dep of Object.keys(allDeps ?? {})) {
+        externals.add(dep);
       }
     }
 
-    // 2. Collect Aliases (Recursive Merge - Submodule Overrides)
+    // ---- tsconfig.json (merged with override) ----
     const tsPath = join(dir, 'tsconfig.json');
     if (existsSync(tsPath)) {
-      try {
-        const tsconfig = parseJSONC<TSConfig>(readFileSync(tsPath, 'utf-8'));
-        const paths = tsconfig.compilerOptions?.paths ?? {};
-        const baseUrl = tsconfig.compilerOptions?.baseUrl ?? '.';
-        const absoluteBase = resolve(dir, baseUrl);
+      if (!tsconfigPath) {
+        tsconfigPath = tsPath; // nearest tsconfig for compiler
+      }
 
-        for (const [key, [firstValue]] of Object.entries(paths)) {
-          if (!firstValue) continue;
+      const tsconfig = safeReadTSConfig(tsPath);
+      const paths = tsconfig?.compilerOptions?.paths ?? {};
+      const baseUrl = tsconfig?.compilerOptions?.baseUrl ?? '.';
+      const absoluteBase = resolve(dir, baseUrl);
 
-          const cleanKey = key.replace('/*', '');
+      for (const [key, values] of Object.entries(paths)) {
+        const first = values?.[0];
+        if (!first) continue;
 
-          if (!aliasMap[cleanKey]) {
-            const cleanValue = firstValue.replace('/*', '');
-            aliasMap[cleanKey] = resolve(absoluteBase, cleanValue);
-          }
+        if (!aliasMap.has(key)) {
+          const target = resolve(
+            absoluteBase,
+            first.replace('/*', ''),
+          );
+          aliasMap.set(key, createAlias(key, target));
         }
-      } catch {
-        /* skip */
       }
     }
 
@@ -100,70 +163,95 @@ function getMetadata(currentDir: string): {
     dir = dirname(dir);
   }
 
-  const aliases = Object.entries(aliasMap).map(([find, replacement]) => ({
-    find,
-    replacement,
-  }));
+  const aliases = Array.from(aliasMap.values()).sort(
+    (a, b) => b.find.source.length - a.find.source.length,
+  );
 
-  return { aliases, externals };
+  return {
+    externals: Array.from(externals),
+    aliases,
+    tsconfigPath: tsconfigPath ?? join(root, 'tsconfig.json'),
+  };
 }
+
+// --------------------
+// Entry discovery
+// --------------------
 
 function discoverEntryPoints(
   dir: string,
-  entryMap: Record<string, EntryMetadata> = {},
-): Record<string, EntryMetadata> {
-  const files = readdirSync(dir);
-
-  for (const file of files) {
+  map: Map<string, EntryMetadata> = new Map(),
+): Map<string, EntryMetadata> {
+  for (const file of readdirSync(dir)) {
     const fullPath = join(dir, file);
-    if (statSync(fullPath).isDirectory()) {
-      if (file !== 'node_modules' && file !== 'dist' && !file.startsWith('.')) {
-        discoverEntryPoints(fullPath, entryMap);
-      }
-    } else {
-      const extension = extname(file);
-      if (
-        file.replace(extension, '') === 'index' &&
-        SUPPORTED_EXTENSIONS.includes(extension)
-      ) {
-        const relativePath = relative(process.cwd(), fullPath);
-        const key = relativePath.replace(extension, '').split(sep).join('/');
 
-        if (!entryMap[key]) {
-          const meta = getMetadata(dirname(fullPath));
-          entryMap[key] = {
-            aliases: meta.aliases,
-            externals: meta.externals,
-            path: `./${relativePath}`,
-          };
-        }
+    if (statSync(fullPath).isDirectory()) {
+      if (
+        file !== 'node_modules' &&
+        file !== 'dist' &&
+        !file.startsWith('.')
+      ) {
+        discoverEntryPoints(fullPath, map);
       }
+      continue;
     }
+
+    const ext = extname(file);
+    if (!SUPPORTED_EXTENSIONS.includes(ext)) continue;
+
+    if (file.replace(ext, '') !== 'index') continue;
+
+    const relativePath = relative(process.cwd(), fullPath);
+    const key = relativePath
+      .replace(ext, '')
+      .split(sep)
+      .join('/');
+
+    if (map.has(key)) {
+      throw new Error(
+        `Duplicate entry detected for "${key}" (conflicting index files).`,
+      );
+    }
+
+    const meta = getMetadata(dirname(fullPath));
+
+    map.set(key, {
+      path: `./${relativePath}`,
+      aliases: meta.aliases,
+      externals: meta.externals,
+      tsconfigPath: meta.tsconfigPath,
+    });
   }
-  return entryMap;
+
+  return map;
 }
+
+// --------------------
+// Build config
+// --------------------
 
 const entryPoints = discoverEntryPoints(process.cwd());
 
-/**
- * Generate a specific configuration for every entry point
- * to ensure path alias isolation.
- */
-export const rollupConfig: RollupOptions[] = Object.entries(
-  entryPoints,
+export const rollupConfig: RollupOptions[] = Array.from(
+  entryPoints.entries(),
 ).flatMap(([key, meta]) => {
   const isExternal = (id: string): boolean => {
     if (id.startsWith('node:')) return true;
-    return meta.externals.some((dep) => id === dep || id.startsWith(`${dep}/`));
+
+    return meta.externals.some(
+      (dep) => id === dep || id.startsWith(`${dep}/`),
+    );
   };
 
-  const sharedPlugins = [alias({ entries: meta.aliases })];
+  const sharedPlugins = [
+    alias({ entries: meta.aliases }),
+  ];
 
   return [
-    // Code Bundle
+    // ---- Code ----
     defineConfig({
-      external: isExternal,
       input: { [key]: meta.path },
+      external: isExternal,
       output: [
         {
           dir: 'dist',
@@ -180,15 +268,26 @@ export const rollupConfig: RollupOptions[] = Object.entries(
       ],
       plugins: [
         ...sharedPlugins,
-        typescript({ declaration: false, tsconfig: './tsconfig.json' }),
+        typescript({
+          tsconfig: meta.tsconfigPath,
+          declaration: false,
+        }),
       ],
     }),
-    // Types Bundle
+
+    // ---- Types ----
     defineConfig({
-      external: isExternal,
       input: { [key]: meta.path },
-      output: { dir: 'dist', entryFileNames: '[name].d.ts', format: 'es' },
-      plugins: [...sharedPlugins, dts()],
+      external: isExternal,
+      output: {
+        dir: 'dist',
+        entryFileNames: '[name].d.ts',
+        format: 'es',
+      },
+      plugins: [
+        ...sharedPlugins,
+        dts(),
+      ],
     }),
   ];
 });
